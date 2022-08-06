@@ -6,12 +6,10 @@ Reverse-engineered the webscan service att http://192.168.1.17/#hId-pgWebScan
 
 import shutil
 import time
-import tkinter as tk
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from tkinter import ttk
-from typing import Iterator
 
+import pyguetzli
 import requests
 from PIL import Image
 
@@ -21,21 +19,31 @@ def downscale(
     size: int,
     quality: int,
     output_file: str | Path | None = None,
-) -> Image:
+    guetzli_pass: bool = False,
+) -> Path:
     """
     Downsize the image to desired max size and jpeg quality.
-    Output filename default: `[filename]_thumbnail.[extension]`
+    Output filename default: `[filename] thumbnail.[extension]`.
+
+    Use `guetzli_pass` if you want to further optimize the final jpeg with Google's Guetzli.
+    Adds 1 minute/Megapixel computation time.
     """
     if isinstance(input_file, str):
         input_file = Path(input_file)
     if isinstance(output_file, str):
         output_file = Path(output_file)
     if not output_file:
-        output_file = input_file.with_stem(f"{input_file.stem}_thumbnail")
+        output_file = input_file.with_stem(f"{input_file.stem} thumbnail")
     img = Image.open(input_file)
     img.thumbnail((size, size))
     img.save(output_file, quality=quality)
-    return (output_file, img)
+    img.close()
+    if guetzli_pass:
+        with open(output_file, "r+b") as file:
+            image = pyguetzli.process_jpeg_bytes(file.read())
+            file.truncate(0)
+            file.write(image)
+    return output_file
 
 
 class Scanner:
@@ -47,6 +55,7 @@ class Scanner:
     """
 
     SCHEMA = "{http://www.hp.com/schemas/imaging/con/ledm/jobs/2009/04/30}"
+    DPIS = (75, 100, 200, 300, 600, 1200, 2400)
 
     printer: str
     cookies: dict[str, str]
@@ -113,7 +122,7 @@ class Scanner:
                 return True
         return False
 
-    def get_jobs(self) -> Iterator[dict[str, str | int | None]]:
+    def get_jobs(self):
         """Get list of all scanning jobs ids on printer, latest last"""
         response = requests.get(
             f"{self.printer}/Jobs/JobList", cookies=self.cookies, headers=self.headers
@@ -204,120 +213,3 @@ class Scanner:
         ) as req:
             with open(output_file, "wb") as file:
                 shutil.copyfileobj(req.raw, file)
-
-
-class ScannerWindow(tk.Tk):
-    """Window to execute scanning actions"""
-
-    DPIS = (75, 100, 200, 300, 600, 1200, 2400)
-
-    def __init__(self, scanner: Scanner):
-        super().__init__()
-        self.title("Skanna bilder")
-        self._scanner = scanner
-        self.dpi = tk.StringVar(self)
-        self._create_inputs()
-        self._create_buttons()
-
-    def _create_inputs(self):
-        filename_frame = ttk.Frame(master=self)
-        filename_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
-        label = ttk.Label(
-            master=filename_frame, width=50, text="Filnamn för skanningen:", anchor="w"
-        )
-        label.pack(side=tk.LEFT)
-        self.filename = ttk.Entry(master=filename_frame)
-        self.filename.insert(0, "scan.jpg")
-        self.filename.pack(side=tk.RIGHT, expand=tk.YES, fill=tk.X)
-
-        dpi_frame = ttk.Frame(master=self)
-        dpi_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
-        label = ttk.Label(
-            master=dpi_frame, width=50, text="DPI (tal mellan 75 och 600):", anchor="w"
-        )
-        label.pack(side=tk.LEFT)
-        self.dpi_menu = ttk.OptionMenu(
-            dpi_frame,
-            self.dpi,
-            "600",
-            *(str(dpi) for dpi in self.DPIS),
-            # command=lambda: print("changed")
-        )
-        self.dpi_menu.pack(side=tk.RIGHT, expand=tk.YES, fill=tk.X)
-
-        quality_frame = ttk.Frame(master=self)
-        quality_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
-        label = ttk.Label(
-            master=quality_frame,
-            width=50,
-            text="JPEG kvalite (0 för sämsta kvalite, 95 för bästa kvalite):",
-            anchor="w",
-        )
-        label.pack(side=tk.LEFT)
-        self.quality = ttk.Entry(master=quality_frame)
-        self.quality.insert(0, "65")
-        self.quality.pack(side=tk.RIGHT, expand=tk.YES, fill=tk.X)
-
-    def _create_buttons(self):
-        self.bind("<Return>", lambda _: self.initiate_scan())
-
-        self.start_btn = ttk.Button(
-            master=self, text="Starta skanning", command=self.initiate_scan
-        )
-        self.start_btn.pack(side=tk.LEFT, padx=5, pady=5)
-
-        self.progress = ttk.Progressbar(
-            master=self, orient="horizontal", mode="indeterminate", length=280
-        )
-        self.progress.pack(fill=tk.X, padx=5, pady=5, before=self.start_btn)
-        self.progress.pack_forget()
-
-        quit_btn = ttk.Button(master=self, text="Avsluta", command=self.quit)
-        quit_btn.pack(side=tk.LEFT, padx=5, pady=5)
-
-    def initiate_scan(self):
-        """Perform a scan"""
-        self.start_btn.state(["disabled"])
-
-        try:
-            match self._scanner.is_ready():
-                case None:
-                    print("Error: Scanner unavailable")
-                    return
-                case False:
-                    print("Error: scanner is not ready")
-                    return
-
-            self.progress.pack(fill=tk.X, padx=5, pady=5, before=self.start_btn)
-            self.progress.start()
-
-            # Full quality scan
-            self._scanner.start_scan(int(self.dpi.get()), compression=95)
-            job = next(self._scanner.get_jobs(), None)
-
-            if not job:
-                print("Error: job not found after starting scan")
-                return
-
-            status = self._scanner.job_status(job["id"])
-            if status != "Processing":
-                print("Error: job could not start")
-                return
-
-            out_file = Path(self.filename.get())
-
-            # Download the scanned page
-            self._scanner.download_scan(job["id"], out_file)
-            (filename, image) = downscale(out_file, size=1080, quality=int(self.quality.get()))
-            image.show()
-            print("Scan done:", filename)
-        finally:
-            self.progress.stop()
-            self.progress.pack_forget()
-            self.start_btn.state(["!disabled"])
-
-
-if __name__ == "__main__":
-    scannr = Scanner()
-    window = ScannerWindow(scannr)
-    window.mainloop()
