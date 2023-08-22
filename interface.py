@@ -116,7 +116,6 @@ Personer i bilden (vänster till höger):
         )
         if folder:
             self.watched_directory = Path(folder).expanduser()
-            print(f"Watching directory: {self.watched_directory}")
             self.create_observer()
             self.icon.title = f"Släktskanning\n{self.watched_directory}"
 
