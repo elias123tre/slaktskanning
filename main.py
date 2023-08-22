@@ -8,9 +8,7 @@ def main():
     app.withdraw_window()
 
     app.create_observer()
-    print(f"Watching directory: {app.watched_directory}")
 
-    # Run the Tkinter main loop
     root.mainloop()
 
 
