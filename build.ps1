@@ -1,0 +1,1 @@
+pyinstaller scanwatcher.py --onefile --windowed --add-data "icon.png;." --icon "icon.ico"
