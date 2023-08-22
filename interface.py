@@ -1,26 +1,57 @@
+import sys
+import os
 from pathlib import Path
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, filedialog
 
 import pystray
 from PIL import Image
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
+
+
+def resource_path(relative_path):
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+
+
+class NewFileHandler(FileSystemEventHandler):
+    def __init__(self, gui):
+        self.gui = gui
+
+    def on_created(self, event):
+        self.gui.show_notification(event)
 
 
 class PhotoInfoApp:
+    watched_directory: Path = Path("~/Pictures/Skanningar").expanduser()
     image_path: Path | None = None
+    observer: Observer | None = None
 
     def __init__(self, root):
         self.root = root
         self.root.title("Släktskanning")
         self.root.protocol("WM_DELETE_WINDOW", self.withdraw_window)
 
-        self.image = Image.open("icon.png")
+        self.observer = None
+        self.handler = NewFileHandler(self)
+
+        self.image = Image.open(resource_path("icon.png"))
         self.menu = (
-            # pystray.MenuItem("Show", self.show_window),
-            pystray.MenuItem("Quit", self.quit_window),
+            pystray.MenuItem("Välj inskanningsmapp", self.change_scan_folder),
+            pystray.MenuItem("Avsluta", self.quit_window),
         )
-        self.icon = pystray.Icon("name", self.image, "Släktskanning", self.menu)
+        self.icon = pystray.Icon(
+            "name", self.image, f"Släktskanning\n{self.watched_directory}", self.menu
+        )
         self.icon.run_detached()
+
+        if not self.watched_directory.exists():
+            self.change_scan_folder()
 
         # Photo location
         self.location_label = ttk.Label(root, text="Plats där fotot togs:")
@@ -34,8 +65,10 @@ class PhotoInfoApp:
         self.date_entry = ttk.Entry(root)
         self.date_entry.pack()
 
-                # People in the photo
-        self.people_label = ttk.Label(root, text="Personer i bilden (en per rad, vänster till höger):")
+        # People in the photo
+        self.people_label = ttk.Label(
+            root, text="Personer i bilden (en per rad, vänster till höger):"
+        )
         self.people_label.pack()
         self.people_text = tk.Text(root, height=5, width=30)
         self.people_text.pack()
@@ -84,3 +117,36 @@ Personer i bilden (vänster till höger):
     def withdraw_window(self):
         self.image_path = None
         self.root.withdraw()
+
+    def change_scan_folder(self):
+        startdir = (
+            self.watched_directory if self.watched_directory.exists() else os.getcwd()
+        )
+        folder = filedialog.askdirectory(
+            initialdir=startdir, title="Välj inskanningsmapp"
+        )
+        if folder:
+            self.watched_directory = Path(folder).expanduser()
+            print(f"Watching directory: {self.watched_directory}")
+            self.create_observer()
+            self.icon.title = f"Släktskanning\n{self.watched_directory}"
+
+    def create_observer(self):
+        if self.observer:
+            self.observer.stop()
+            self.observer.join()
+
+        self.observer = Observer()
+        self.observer.schedule(
+            self.handler, path=self.watched_directory, recursive=False
+        )
+        self.observer.start()
+
+    def show_notification(self, event):
+        if event.event_type == "created":
+            # messagebox.showinfo("New File Added", f"New file '{event.src_path}' added!")
+            image = Path(event.src_path)
+            # if image is of file type image
+            if image.suffix in [".jpg", ".jpeg", ".png", ".gif"]:
+                # Show the window
+                self.show_window(image)
