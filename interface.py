@@ -38,6 +38,7 @@ class PhotoInfoApp:
     def setup_tray_icon(self):
         self.image = Image.open(resource_path("icon.png"))
         self.menu = (
+            pystray.MenuItem("Öppna fil för att lägga till metadata", self.add_metadata),
             pystray.MenuItem("Välj inskanningsmapp", self.change_scan_folder),
             pystray.MenuItem("Avsluta", self.quit_app),
         )
@@ -135,6 +136,14 @@ Personer i bilden (vänster till höger):
             self.handler, path=self.watched_directory, recursive=False
         )
         self.observer.start()
+
+    def add_metadata(self):
+        file = filedialog.askopenfilename(
+            initialdir=self.watched_directory,
+            title="Välj fil att lägga till metadata till",
+        )
+        if file:
+            self.show_window(file)
 
     def show_notification(self, event):
         if event.event_type == "created":
