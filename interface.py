@@ -1,3 +1,4 @@
+from datetime import datetime
 import sys
 import os
 from pathlib import Path
@@ -46,6 +47,8 @@ class PhotoInfoApp:
         self.icon.run_detached()
 
     def setup_ui(self):
+        # Lämna tomt om informationen inte finns
+
         self.location_label = ttk.Label(self.root, text="Plats där fotot togs:")
         self.location_label.pack()
         self.location_entry = ttk.Entry(self.root)
@@ -74,16 +77,19 @@ class PhotoInfoApp:
         people = self.people_text.get("1.0", "end-1c")
         people_lines = "\n".join(f"- {line}" for line in people.splitlines())
 
-        info = f"""
+        if self.image_path:
+            image = Path(self.image_path)
+            now = datetime.now()
+
+            info = f"""
+Datum inskannat: {now.strftime("%Y-%m-%d %H:%M:%S")}
+Inskannade bildens filstorlek (byte): {image.stat().st_size}
 Plats: {location}
 Datum fotat: {date_taken}
 Personer i bilden (vänster till höger):
 {people_lines}
 """.strip()
-
-        if self.image_path:
-            image = Path(self.image_path)
-            meta = image.with_stem(image.stem + "_info").with_suffix(".txt")
+            meta = image.with_stem(image.stem + "_metadata").with_suffix(".txt")
             meta.write_text(info, encoding="utf-8")
 
         self.withdraw_window()
