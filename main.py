@@ -38,19 +38,17 @@ class ImageLabel(QLabel):
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
-            # get clicked point in width and height percentage
             x = event.x() / self.width()
             y = event.y() / self.height()
             print(f"Clicked at {x}, {y}")
-            # create a popup menu
+
             menu = QMenu(self)
-            menu.addAction("Open image")
+            menu.addAction("Tagga person")
 
             # show popup menu at clicked position
             action = menu.exec_(self.mapToGlobal(event.pos()))
             if action:
-                # self.open_image()
-                print("Open image")
+                print("Tagga person")
 
 
 class PhotoMetaApp(QMainWindow):
@@ -243,8 +241,6 @@ def resource_path(relative_path):
 def main():
     app = QApplication(sys.argv)
     window = PhotoMetaApp()
-    # window.show()
-    # window.hide()
     sys.exit(app.exec_())
 
 
