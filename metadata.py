@@ -1,4 +1,34 @@
 from collections import OrderedDict
+from datetime import datetime
+from pathlib import Path
+
+
+def save_info(image_path, metadata: list[(str, str)]):
+    image = Path(image_path)
+    now = datetime.now()
+    now = now.astimezone()
+
+    info = [
+        f'Datum inskannat:\n{now.strftime("%Y-%m-%d %H:%M:%S GMT%z")}',
+        f"Inskannade bildens filstorlek (byte):\n{image.stat().st_size}",
+    ]
+
+    for key, value in metadata:
+        identifier = METADATA_SCHEMA[key]["identifier"]
+        text = value.strip()
+        if text:
+            info.append(f"{identifier}\n{text}")
+
+    metadata_text = "\n\n".join(info)
+    meta = image.with_stem(image.stem + "_metadata").with_suffix(".txt")
+    # if file exists rename the old one with its modification date
+    if meta.exists():
+        modified_date = datetime.fromtimestamp(meta.stat().st_mtime)
+        meta.rename(
+            meta.with_stem(f"{meta.stem}_{modified_date.strftime('%Y%m%d%H%M%S')}")
+        )
+    meta.write_text(metadata_text, encoding="utf-8")
+
 
 METADATA_SCHEMA = OrderedDict(
     {
