@@ -28,8 +28,10 @@ from watchdog.observers import Observer
 from metadata import METADATA_SCHEMA, PEOPLE_METADATA, save_info
 
 CONFIG_PATH = (
-    Path(os.getenv("APPDATA")) if os.name == "nt" else Path.home()
-) / "slaktskanning.ini"
+    Path(os.getenv("APPDATA")) / "slaktskanning.ini"
+    if os.name == "nt"
+    else Path.home() / ".slaktskanning.ini"
+)
 
 
 class ImageLabel(QLabel):
