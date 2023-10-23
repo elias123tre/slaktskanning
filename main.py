@@ -1,3 +1,4 @@
+import configparser
 import os
 import sys
 from collections import OrderedDict
@@ -25,6 +26,10 @@ from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
 from metadata import METADATA_SCHEMA, PEOPLE_METADATA, save_info
+
+CONFIG_PATH = (
+    Path(os.getenv("APPDATA")) if os.name == "nt" else Path.home()
+) / "slaktskanning.ini"
 
 
 class ImageLabel(QLabel):
@@ -170,14 +175,17 @@ class PhotoMetaApp(QMainWindow):
         self.initUI()
         self.tray_icon = self.create_system_tray()
 
-        self.watched_directory = Path.home() / "Pictures" / "Skanningar"
-        if not self.watched_directory.exists():
+        config = get_config()
+        directory = config.get("General", "scan_directory", fallback=None)
+        self.watched_directory = Path(directory).expanduser() if directory else None
+        if self.watched_directory and self.watched_directory.exists():
+            self.setup_file_observer()
+            self.tray_icon.setToolTip(f"Släktskanning\n{self.watched_directory}")
+            save_config({"scan_directory": str(self.watched_directory)})
+        else:
             self.change_scan_folder()
             if not self.watched_directory.exists():
                 self.quit_app()
-        else:
-            self.setup_file_observer()
-            self.tray_icon.setToolTip(f"Släktskanning\n{self.watched_directory}")
         self.selected_file = None
 
         self.show_window_signal.connect(self.show_window)
@@ -288,10 +296,12 @@ class PhotoMetaApp(QMainWindow):
         image_file, _ = QFileDialog.getOpenFileName(
             self,
             "Open Image",
-            str(self.watched_directory.absolute())
-            if self.watched_directory.exists()
-            else "",
-            "Image Files (*.png *.jpg *.jpeg *.gif *.bmp);;All Files (*)",
+            (
+                str(self.watched_directory.absolute())
+                if self.watched_directory.exists()
+                else ""
+            ),
+            "Image Files (*.png *.jpg *.jpeg *.gif);;All Files (*)",
         )
         if image_file:
             self.selected_file = Path(image_file)
@@ -304,15 +314,18 @@ class PhotoMetaApp(QMainWindow):
         folder = QFileDialog.getExistingDirectory(
             self,
             "Välj inskanningsmapp",
-            str(self.watched_directory.absolute())
-            if self.watched_directory.exists()
-            else "",
+            (
+                str(self.watched_directory.absolute())
+                if self.watched_directory and self.watched_directory.exists()
+                else ""
+            ),
         )
         if folder:
             self.watched_directory = Path(folder).expanduser()
             if self.watched_directory.exists():
                 self.setup_file_observer()
                 self.tray_icon.setToolTip(f"Släktskanning\n{self.watched_directory}")
+                save_config({"scan_directory": str(self.watched_directory)})
                 self.show()
                 self.hide()
 
@@ -344,6 +357,25 @@ def resource_path(relative_path):
         base_path = os.path.abspath(".")
 
     return os.path.join(base_path, relative_path)
+
+
+def get_config():
+    """Save the scan folder in a config file in AppData/slaktskanning.ini on windows and ~/.slaktskanning.ini to persist between sessions"""
+    config = configparser.ConfigParser()
+    config.read(CONFIG_PATH, encoding="utf-8")
+    return config
+
+
+def save_config(new_config: dict):
+    """Save the scan folder in a config file in AppData/slaktskanning.ini on windows and ~/.slaktskanning.ini to persist between sessions"""
+    config = configparser.ConfigParser()
+    config.read(CONFIG_PATH, encoding="utf-8")
+    for key, value in new_config.items():
+        if not config.has_section("General"):
+            config.add_section("General")
+        config.set("General", key, value)
+    with open(CONFIG_PATH, "w", encoding="utf-8") as config_file:
+        config.write(config_file)
 
 
 def main():
