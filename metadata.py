@@ -35,7 +35,7 @@ def save_info(
 # Metadata för inskannad bild
 
 # Filnamn på den inskannade bilden
-filnamn: {image.name}
+filnamn: {image.name.replace(" #", " <hashtag>")}
 # Datum och tid då metadata skrevs
 metadata_skriven: {now.strftime('%Y-%m-%d %H:%M:%S GMT%z')}
 # Datum och tid då bildfilen skapades
