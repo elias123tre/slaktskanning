@@ -14,6 +14,7 @@ from PySide2.QtWidgets import (
     QMainWindow,
     QMenu,
     QPushButton,
+    QScrollArea,
     QSystemTrayIcon,
     QTextEdit,
     QVBoxLayout,
@@ -77,8 +78,13 @@ class PhotoMetaApp(QMainWindow):
         app_icon = QIcon(resource_path("icon.png"))
         self.setWindowIcon(app_icon)
 
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+
         central_widget = QWidget()
-        self.setCentralWidget(central_widget)
+        scroll_area.setWidget(central_widget)
+
+        self.setCentralWidget(scroll_area)
 
         layout = QVBoxLayout()
         image_layout = QHBoxLayout()
