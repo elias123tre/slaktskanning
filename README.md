@@ -2,7 +2,8 @@
 
 > This is a program that watches a folder for new scanned images and shows a prompt with fields for metadata to that picture and saves it as a metadata file besides the image.
 
-**Note:** This program is in Swedish.
+> **Note**
+> This program is in Swedish.
 
 ## Instructions
 
