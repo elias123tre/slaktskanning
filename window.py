@@ -1,11 +1,9 @@
-import configparser
-import os
 import sys
 from collections import OrderedDict
 from pathlib import Path
 
-from PySide2.QtCore import Qt, Signal
-from PySide2.QtGui import QIcon, QPixmap, QPainter, QBrush, QPen
+from PySide2.QtCore import Signal
+from PySide2.QtGui import QIcon, QPixmap
 from PySide2.QtWidgets import (
     QAction,
     QApplication,
@@ -20,147 +18,14 @@ from PySide2.QtWidgets import (
     QTextEdit,
     QVBoxLayout,
     QWidget,
-    QDialog,
 )
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
+from ImageLabel import ImageLabel, get_text_content
+from meta_schema import METADATA_SCHEMA
 
-from metadata import METADATA_SCHEMA, PEOPLE_METADATA, save_info
-
-CONFIG_PATH = (
-    Path(os.getenv("APPDATA")) / "slaktskanning.ini"
-    if os.name == "nt"
-    else Path.home() / ".slaktskanning.ini"
-)
-
-
-class ImageLabel(QLabel):
-    def __init__(self, parent=None, people: list[dict] | None = None):
-        super().__init__(parent)
-        self.people = people
-        self.setAlignment(Qt.AlignCenter)
-        self.setScaledContents(True)
-        # self.setFixedSize(200, 200)
-        self.setCursor(Qt.PointingHandCursor)
-        self.setToolTip("Klicka för att markera en person")
-
-        self.people_dots_size = 10
-        self.people_dots_color = Qt.red
-        self.people_dots_pen = Qt.black
-        self.people_dots_pen_width = 2
-
-    def paintEvent(self, event):
-        super().paintEvent(event)
-        painter = QPainter(self)
-        painter.setPen(QPen(self.people_dots_pen, self.people_dots_pen_width))
-        painter.setBrush(QBrush(self.people_dots_color))
-        for person in self.people:
-            x, y = person["coordinates"]
-            painter.drawEllipse(
-                x * self.width() - self.people_dots_size / 2,
-                y * self.height() - self.people_dots_size / 2,
-                self.people_dots_size,
-                self.people_dots_size,
-            )
-
-    def remove_person(self, x, y):
-        self.people.remove(
-            next(person for person in self.people if person["coordinates"] == (x, y))
-        )
-
-    def edit_person(self, x, y, values: dict | None = None):
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Tagga person")
-        dialog.setModal(True)
-        # dialog.resize(400, 300)
-        dialog.setLayout(QVBoxLayout())
-
-        fields = OrderedDict()
-        for key, value in PEOPLE_METADATA.items():
-            label = QLabel(value["label"])
-            if value.get("multiline"):
-                field_input = QTextEdit()
-            else:
-                field_input = QLineEdit()
-            field_input.setPlaceholderText("  |  ".join(value["examples"]))
-            fields[key] = field_input
-            dialog.layout().addWidget(label)
-            dialog.layout().addWidget(field_input)
-            if value.get("multiline"):
-                dialog.layout().addStretch(1)
-
-        if values is not None:
-            for key, value in values.items():
-                fields[key].setText(value)
-
-            delete_button = QPushButton("Ta bort")
-            delete_button.clicked.connect(
-                lambda: self.remove_person(x, y) or dialog.reject()
-            )
-            dialog.layout().addWidget(delete_button)
-
-        submit_button = QPushButton("Submit")
-        submit_button.clicked.connect(dialog.accept)
-        dialog.closeEvent = lambda event: dialog.reject()
-
-        dialog.layout().addWidget(submit_button)
-        dialog.exec_()
-
-        if dialog.result():
-            self.save_person(fields, x, y)
-
-    def save_person(self, fields, x, y):
-        metadata = []
-        for key, value in fields.items():
-            if isinstance(value, QTextEdit):
-                text_content = value.toPlainText()
-            else:
-                text_content = value.text()
-            if text_content:
-                metadata.append((key, text_content))
-        if metadata:
-            for person in self.people:
-                px, py = person["coordinates"]
-                if px == x and py == y:
-                    person["metadata"] = metadata
-                    return
-            self.people.append(
-                {
-                    "coordinates": (x, y),
-                    "metadata": metadata,
-                }
-            )
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            x = event.x() / self.width()
-            y = event.y() / self.height()
-
-            for person in self.people:
-                px, py = person["coordinates"]
-                if (
-                    abs(x - px) < self.people_dots_size / 2 / self.width()
-                    and abs(y - py) < self.people_dots_size / 2 / self.height()
-                ):
-                    self.edit_person(px, py, dict(person["metadata"]))
-                    return
-
-            menu = QMenu(self)
-            menu.addAction("Tagga person")
-            menu.addAction("Okänd person")
-
-            action = menu.exec_(self.mapToGlobal(event.pos()))
-            if action:
-                if action.text() == "Tagga person":
-                    self.edit_person(x, y)
-                else:
-                    self.people.append(
-                        {
-                            "coordinates": (x, y),
-                            "metadata": [],
-                        }
-                    )
-                    self.update()
+from metadata import save_info
+from util import get_config, save_config, resource_path
 
 
 class PhotoMetaApp(QMainWindow):
@@ -192,14 +57,27 @@ class PhotoMetaApp(QMainWindow):
 
         self.show_window_signal.connect(self.show_window)
 
+        font = self.font()
+        font.setPointSize(12)
+        QApplication.instance().setFont(font)
+
     def initUI(self):
         self.setWindowTitle("Släktskanning")
-        # self.setGeometry(100, 100, 600, 400)
+        # place window in center of screen with auto width and height
+        screen = QApplication.primaryScreen().geometry()
+        width = screen.width() * 0.5
+        height = screen.height() * 0.5
+        self.setGeometry(
+            screen.x() + (screen.width() - width) / 2,
+            100,
+            width,
+            height,
+        )
 
         app_icon = QIcon(resource_path("icon.png"))
         self.setWindowIcon(app_icon)
 
-        central_widget = QWidget(self)
+        central_widget = QWidget()
         self.setCentralWidget(central_widget)
 
         layout = QVBoxLayout()
@@ -215,13 +93,13 @@ class PhotoMetaApp(QMainWindow):
         self.fields = OrderedDict()
         for key, value in METADATA_SCHEMA.items():
             label = QLabel(value["label"])
+            fields_layout.addWidget(label)
             if value.get("multiline"):
                 field_input = QTextEdit()
             else:
                 field_input = QLineEdit()
             field_input.setPlaceholderText("  |  ".join(value["examples"]))
             self.fields[key] = field_input
-            fields_layout.addWidget(label)
             fields_layout.addWidget(field_input)
             if value.get("multiline"):
                 fields_layout.addStretch(1)
@@ -260,6 +138,7 @@ class PhotoMetaApp(QMainWindow):
             self.setWindowTitle(f"Släktskanning - {self.selected_file.name}")
         for _, value in self.fields.items():
             value.clear()
+        self.activateWindow()
 
     def tray_activated(self, reason):
         if reason == QSystemTrayIcon.DoubleClick:
@@ -334,10 +213,7 @@ class PhotoMetaApp(QMainWindow):
     def submit(self):
         metadata = []
         for key, value in self.fields.items():
-            if isinstance(value, QTextEdit):
-                text_content = value.toPlainText()
-            else:
-                text_content = value.text()
+            text_content = get_text_content(value)
             if text_content:
                 metadata.append((key, text_content))
         save_info(self.selected_file, metadata, self.people)
@@ -350,34 +226,6 @@ class FileHandler(FileSystemEventHandler):
 
     def on_created(self, event):
         self.app.new_scan(event)
-
-
-def resource_path(relative_path):
-    try:
-        base_path = sys._MEIPASS
-    except Exception:
-        base_path = os.path.abspath(".")
-
-    return os.path.join(base_path, relative_path)
-
-
-def get_config():
-    """Save the scan folder in a config file in AppData/slaktskanning.ini on windows and ~/.slaktskanning.ini to persist between sessions"""
-    config = configparser.ConfigParser()
-    config.read(CONFIG_PATH, encoding="utf-8")
-    return config
-
-
-def save_config(new_config: dict):
-    """Save the scan folder in a config file in AppData/slaktskanning.ini on windows and ~/.slaktskanning.ini to persist between sessions"""
-    config = configparser.ConfigParser()
-    config.read(CONFIG_PATH, encoding="utf-8")
-    for key, value in new_config.items():
-        if not config.has_section("General"):
-            config.add_section("General")
-        config.set("General", key, value)
-    with open(CONFIG_PATH, "w", encoding="utf-8") as config_file:
-        config.write(config_file)
 
 
 def main():
