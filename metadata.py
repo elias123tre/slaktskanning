@@ -94,6 +94,13 @@ personer_metadata_version: {people_metadata_hash}
 # Identifierade personer i bilden
 personer:
 """.lstrip("\n")
+        # sort by y coordinate then x coordinate
+        people.sort(
+            key=lambda p: (
+                p.get("coordinates", (None, None))[1],
+                p.get("coordinates", (None, None))[0],
+            )
+        )
         for i, person in enumerate(people):
             x, y = person.get("coordinates", (None, None))
             if not x and not y:
@@ -146,5 +153,3 @@ personer:
             )
         )
     meta_file.write_text(metadata_text, encoding="utf-8")
-
-
