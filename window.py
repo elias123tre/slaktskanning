@@ -144,6 +144,11 @@ class PhotoMetaApp(QMainWindow):
             self.setWindowTitle(f"Släktskanning - {self.selected_file.name}")
         for _, value in self.fields.items():
             value.clear()
+
+        self.people = []
+        self.image_label.people = self.people
+        self.image_label.repaint()
+
         self.activateWindow()
 
     def tray_activated(self, reason):
