@@ -1,7 +1,24 @@
 from datetime import datetime
 from pathlib import Path
+import hashlib
+import json
+from typing import Any
 
 from meta_schema import METADATA_SCHEMA, PEOPLE_METADATA
+
+
+def dict_hash(dictionary: dict[str, Any]) -> str:
+    """MD5 hash of a dictionary.
+    https://stackoverflow.com/a/67438471/10767416
+    """
+    dhash = hashlib.md5()
+    encoded = json.dumps(dictionary, sort_keys=True).encode()
+    dhash.update(encoded)
+    return dhash.hexdigest()
+
+
+metadata_hash = dict_hash(METADATA_SCHEMA)
+people_metadata_hash = dict_hash(PEOPLE_METADATA)
 
 
 def format_field(key: str, text: str, comment: str, indentation: int = 0) -> str:
@@ -54,6 +71,12 @@ bildfilen_skapad: {created_date.strftime('%Y-%m-%d %H:%M:%S GMT%z')}
 
 # Bildfilens storlek i byte
 bildfilen_storlek_byte: {image_stat.st_size}
+
+# Metadata version
+metadata_version: {metadata_hash}
+
+# Personers metadata version
+personer_metadata_version: {people_metadata_hash}
 
 """.lstrip("\n")
 
