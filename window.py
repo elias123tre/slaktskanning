@@ -66,11 +66,11 @@ class PhotoMetaApp(QMainWindow):
         self.setWindowTitle("Släktskanning")
         # place window in center of screen with auto width and height
         screen = QApplication.primaryScreen().geometry()
-        width = screen.width() * 0.5
-        height = screen.height() * 0.5
+        width = screen.width() * 0.6
+        height = screen.height() * 0.8
         self.setGeometry(
             screen.x() + (screen.width() - width) / 2,
-            100,
+            50,
             width,
             height,
         )
