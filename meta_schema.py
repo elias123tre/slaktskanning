@@ -19,6 +19,15 @@ PEOPLE_METADATA = OrderedDict(
                 "Gustafsson",
             ],
         },
+        "identifierande_person": {
+            "label": "Vem/vilka identifierade personen:",
+            "comment": "Vem/vilka identifierade personen",
+            "examples": [
+                "Sven Andersson",
+                "Sven Andersson (Personidentitet 12)",
+                "Sven Andersson, Nina Eriksson",
+            ],
+        },
         "säkerhet_identifiering": {
             "label": "Säkerhet i identifieringen:",
             "comment": "Säkerhet i identifieringen",
@@ -122,15 +131,6 @@ METADATA_SCHEMA = OrderedDict(
                 "Skickades av Nina Eriksson.",
                 "Hittades i en bok om släkten.",
                 "Ärvdes av Sven Andersson.",
-            ],
-        },
-        "identifierande_person": {
-            "label": "Vem/vilka identifierade personerna i bilden:",
-            "comment": "Vem/vilka identifierade personerna som är med i bilden",
-            "examples": [
-                "Sven Andersson",
-                "Sven Andersson (Personidentitet 12)",
-                "Sven Andersson, Nina Eriksson",
             ],
         },
         "sammanhang": {
