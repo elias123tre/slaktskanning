@@ -1,8 +1,9 @@
 import sys
 from collections import OrderedDict
 from pathlib import Path
+import time
 
-from PySide2.QtCore import Signal
+from PySide2.QtCore import Signal, Qt
 from PySide2.QtGui import QIcon, QPixmap
 from PySide2.QtWidgets import (
     QAction,
@@ -138,10 +139,22 @@ class PhotoMetaApp(QMainWindow):
         return tray_icon
 
     def show_window(self):
-        self.show()
+        time.sleep(0.1)
+        # https://stackoverflow.com/a/56550014/10767416
+        # bring window to top and act like a "normal" window!
+        self.setWindowFlags(
+            self.windowFlags() | Qt.WindowStaysOnTopHint
+        )  # set always on top flag, makes window disappear
+        self.show()  # makes window reappear, but it's ALWAYS on top
+        self.setWindowFlags(
+            self.windowFlags() & ~Qt.WindowStaysOnTopHint
+        )  # clear always on top flag, makes window disappear
+        self.show()  # makes window reappear, acts like normal window now (on top now but can be underneath if you raise another window)
+
         if self.selected_file:
             self.image_label.setPixmap(QPixmap(str(self.selected_file)))
             self.setWindowTitle(f"Släktskanning - {self.selected_file.name}")
+
         for _, value in self.fields.items():
             value.clear()
 
@@ -150,6 +163,8 @@ class PhotoMetaApp(QMainWindow):
         self.image_label.repaint()
 
         self.activateWindow()
+        self.raise_()
+        self.setFocus()
 
     def tray_activated(self, reason):
         if reason == QSystemTrayIcon.DoubleClick:
@@ -236,6 +251,8 @@ class FileHandler(FileSystemEventHandler):
         self.app = app
 
     def on_created(self, event):
+        # Wait for file to be written
+        time.sleep(0.5)
         self.app.new_scan(event)
 
 
