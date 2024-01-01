@@ -1,4 +1,4 @@
-from meta_schema import PEOPLE_METADATA
+import json
 
 
 from PySide2.QtCore import QSize, Qt
@@ -16,6 +16,10 @@ from PySide2.QtWidgets import (
 
 
 from collections import OrderedDict
+
+from util import get_config, save_config
+from meta_schema import PEOPLE_METADATA
+from PersonSearchDialog import PersonSearchDialog
 
 
 def get_text_content(component):
@@ -115,6 +119,8 @@ class ImageLabel(QLabel):
             dialog.layout().addWidget(delete_button)
 
         submit_button = QPushButton("Submit")
+        submit_button.setDefault(True)
+        dialog.setFocusProxy(submit_button)
         submit_button.clicked.connect(dialog.accept)
         dialog.closeEvent = lambda event: dialog.reject()
 
@@ -131,10 +137,33 @@ class ImageLabel(QLabel):
             if text_content:
                 metadata.append((key, text_content))
         if metadata:
+            config = get_config()
+            recent_people = config.get("General", "recent_people", fallback=None)
+            if recent_people:
+                recent_people = json.loads(recent_people)
+            else:
+                recent_people = []
             for person in self.people:
                 px, py = person["coordinates"]
                 if px == x and py == y:
                     person["metadata"] = metadata
+                    metadata_dict = dict(metadata)
+                    for recent_person in recent_people:
+                        recent_person_dict = dict(recent_person)
+                        if (
+                            recent_person_dict.get("förnamn", "").lower()
+                            == metadata_dict.get("förnamn", "").lower()
+                            and recent_person_dict.get("efternamn", "").lower()
+                            == metadata_dict.get("efternamn", "").lower()
+                            and recent_person_dict.get("födelsedatum", "").lower()
+                            == metadata_dict.get("födelsedatum", "").lower()
+                        ):
+                            recent_people.remove(recent_person)
+                            recent_people.append(metadata)
+                            break
+                    else:
+                        recent_people.append(metadata)
+                    save_config({"recent_people": json.dumps(recent_people)})
                     return
             self.people.append(
                 {
@@ -142,6 +171,8 @@ class ImageLabel(QLabel):
                     "metadata": metadata,
                 }
             )
+            recent_people.append(metadata)
+            save_config({"recent_people": json.dumps(recent_people)})
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -160,12 +191,22 @@ class ImageLabel(QLabel):
             menu = QMenu(self)
             menu.addAction("Tagga person")
             menu.addAction("Okänd person")
+            menu.addAction("Tidigare ifylld person")
+            config = get_config()
+            recent_people_str = config.get("General", "recent_people", fallback="[]")
+            menu.addSeparator()
+            recent_people = json.loads(recent_people_str)
+            for person in reversed(recent_people[-5:]):
+                person_metadata = dict(person)
+                menu.addAction(
+                    f"{person_metadata.pop('förnamn', '')} {person_metadata.pop('efternamn', '')} ({person_metadata.pop('födelsedatum', '')})"
+                )
 
             action = menu.exec_(self.mapToGlobal(event.pos()))
             if action:
                 if action.text() == "Tagga person":
                     self.edit_person(x, y)
-                else:
+                elif action.text() == "Okänd person":
                     self.people.append(
                         {
                             "coordinates": (x, y),
@@ -173,3 +214,29 @@ class ImageLabel(QLabel):
                         }
                     )
                     self.update()
+                elif action.text() == "Tidigare ifylld person":
+                    # display dialog to search for person in recent_people
+                    dialog = PersonSearchDialog(self, recent_people=recent_people)
+                    if dialog.exec_():
+                        self.people.append(
+                            {
+                                "coordinates": (x, y),
+                                "metadata": dialog.person,
+                            }
+                        )
+                        self.update()
+                else:
+                    for person in recent_people:
+                        person_metadata = dict(person)
+                        if (
+                            action.text()
+                            == f"{person_metadata.pop('förnamn', '')} {person_metadata.pop('efternamn', '')} ({person_metadata.pop('födelsedatum', '')})"
+                        ):
+                            self.people.append(
+                                {
+                                    "coordinates": (x, y),
+                                    "metadata": person,
+                                }
+                            )
+                            self.update()
+                            break

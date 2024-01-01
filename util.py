@@ -21,7 +21,7 @@ CONFIG_PATH = (
 
 
 def get_config():
-    """Save the scan folder in a config file in AppData/slaktskanning.ini on windows and ~/.slaktskanning.ini to persist between sessions"""
+    """Get the scan folder from a config file in AppData/slaktskanning.ini on windows and ~/.slaktskanning.ini to persist between sessions"""
     config = configparser.ConfigParser()
     config.read(CONFIG_PATH, encoding="utf-8")
     return config
